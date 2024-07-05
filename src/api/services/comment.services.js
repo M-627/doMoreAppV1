@@ -25,7 +25,7 @@ const createComment = async(userID, postID, content) =>
     
         if (savedComment)
         {
-            const post = await Post.findByIdAndUpdate(postID, {comments: savedComment})
+            const post = await Post.findByIdAndUpdate(postID, {$push :{comments: savedComment}})
             if (!post)
                 return false
         }
@@ -45,7 +45,7 @@ const createReply = async(userID, commentID, content) =>
 {
     try
     {
-        let comment = await Comment.findByIdAndUpdate(commentID, {replies: {owner: userID, content: content}})
+        let comment = await Comment.findByIdAndUpdate(commentID, {$push: {replies: {owner: userID, content: content}}})
         if (!comment)
             return false
         
@@ -82,7 +82,7 @@ const readComment = async(userID, postID, commentID) =>
                 {
                     "replyOwner": reply.owner,
                     "username": replyOwner.username,
-                    "fitstName": replyOwner.firstName,
+                    "firstName": replyOwner.firstName,
                     "lastName": replyOwner.lastName,
                     "profilePhoto": replyOwner.profilePhoto,
                     "isReplyOwner": reply.owner === userID,
@@ -115,10 +115,69 @@ const readComment = async(userID, postID, commentID) =>
 }
 
 
+// Delete Comment
+const deleteComment = async(userID, postID, commentID) =>
+{
+    try
+    {
+        const post = await Post.findById(postID, {_id: 0, owner: 1})
+        const comment = await Comment.findById(commentID, {_id: 0, owner:1, post: 1})
+        if (comment.post != postID)
+            return false
+
+        if (comment.owner == userID || post.owner == userID)
+        {
+            const deletedComment = await Comment.findByIdAndDelete(commentID)
+            if (!deletedComment)
+                return false
+        }
+        else
+            return false
+
+        const deletedFromPost = await Post.findByIdAndUpdate(postID, {$pullAll: {comments: [commentID]}})
+        console.log(deletedFromPost)
+        return deletedFromPost
+    }
+    catch (err)
+    {
+        console.log("Delete comment error: " + err)
+    }
+}
+
+
+// Delete Reply
+const deleteReply = async(userID, postID, commentID, replyIndex) =>
+{
+    try
+    {
+        const post = await Post.findById(postID, {_id: 0, owner: 1})
+        const comment = await Comment.findById(commentID, {_id: 0, owner: 1, post: 1, replies: 1})
+        
+        if (comment.replies.length == 0 || comment.post != postID || replyIndex >= comment.replies.length)
+            return false
+
+        let removedReply = false
+        if (comment.replies[replyIndex].owner == userID || post.owner == userID)
+            removedReply = await Comment.findByIdAndUpdate(commentID, {$pull: {replies: comment.replies[replyIndex]}})
+        else
+            return false
+
+        return removedReply
+        
+    }
+    catch (err)
+    {
+        console.log("Delete reply error: " + err)
+    }
+}
+
+
 
 module.exports =
 {
     createComment,
     createReply,
-    readComment
+    readComment,
+    deleteComment,
+    deleteReply
 }

@@ -71,6 +71,7 @@ const readAllPosts = async(userID) =>
             (
                 {
                     "postID": post._id,
+                    "owner": post.owner,
                     "username": user.username,
                     "firstName": user.firstName,
                     "lastName": user.lastName,
@@ -80,7 +81,7 @@ const readAllPosts = async(userID) =>
                     "content": post.content,
                     "attachedMedia": post.attachedMedia,
                     "likes": post.likes.length,
-                    "comments": post.comments.length,
+                    "commentsCount": post.comments.length,
                     "createdAt": post.createdAt
                 }
             )
@@ -100,6 +101,7 @@ const readPost = async(userID, postID) =>
     try 
     {
         const post = await Post.findById(postID, {_id: 1, owner: 1, group: 1, createdAt: 1, content: 1, attachedMedia: 1, likes: 1, comments: 1})
+        console.log(post)
         if (!post)
             return false
 
@@ -118,14 +120,14 @@ const readPost = async(userID, postID) =>
         const foundPost = 
         {
             "postID": post._id,
-            "postOwner": post.owner,
+            "owner": post.owner,
             "username": postOwner.username,
             "firstName": postOwner.firstName,
             "lastName": postOwner.lastName,
             "profilePhoto": postOwner.profilePhoto,
             "isPostOwner": post.owner === userID,
-            "isLiked": post.likes.includes(userID),
-            "postGroup": postGroup.name,
+            "likedByUser": post.likes.includes(userID),
+            "groupName": postGroup.name,
             "createdAt": post.createdAt,
             "content": post.content,
             "attachedMedia": post.attachedMedia,
@@ -141,6 +143,9 @@ const readPost = async(userID, postID) =>
         console.log('Read post error: ' + err)
     }
 }
+
+
+// Read User's Posts for Owner Only
 
 
 // Update post
@@ -196,6 +201,30 @@ const unlikePost = async(postID, userID) =>
 }
 
 
+const reportPost = async(userID, postID) =>
+{
+    try
+    {
+        let post = await Post.findById(postID, {_id: 0, owner: 1})
+        console.log(post)
+        if (userID === post.owner)
+            return false
+
+        const reportedPost = await Post.findByIdAndUpdate(postID, {$push: {reports: userID}})
+
+        post = await Post.findById(postID, {_id: 0, reports: 1})
+        
+        if (post.reports.length >= 5)
+            await Post.findByIdAndDelete(postID)
+
+        return reportedPost
+    }
+    catch (err)
+    {
+        console.log('Report post error: ' + err)
+    }
+}
+
 
 // Delete post
 const deletePost = async(userID, postID) =>
@@ -232,6 +261,7 @@ const searchPosts = async(searchQuery) =>
 //     }
 
     const axios = require('axios');
+const { report } = require('../routes/post.routes')
 
 const getPostsData = async (userID) => {
   try {
@@ -261,6 +291,7 @@ module.exports =
     updatePost,
     likePost,
     unlikePost,
+    reportPost,
     deletePost,
     searchPosts,
     getPostsData
